@@ -29,7 +29,7 @@ public class RxJavaDemo {
         final int totalCount[] = new int[1];
         carFlowable.buffer(5000)
                 .parallel(Runtime.getRuntime().availableProcessors()-1)
-                .runOn(Schedulers.io())
+                .runOn(Schedulers.from(executorService))
                 .map(c -> RateCalculator.getRateUsingEndPoint(c, timeMap))
                 .sequential()
                 .subscribeOn(Schedulers.from(executorService))
