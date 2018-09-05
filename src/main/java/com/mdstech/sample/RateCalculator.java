@@ -1,5 +1,7 @@
 package com.mdstech.sample;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,16 +45,26 @@ public class RateCalculator {
         return rateSheet.get(String.format("%s_%s", manufacturer, model));
     }
 
-    public static List<Car> getRate(List<Car> cars) {
+    public static List<Car> getRate(List<Car> cars, Map<String, Long> timeMap) {
+        long start = System.currentTimeMillis();
         try {
-            Thread.sleep(3000);
+            Thread.sleep(6000);
         } catch (Exception ex) {
         }
-        return cars.stream().map(c -> {
+//        System.out.println(LocalDateTime.now().format(DateTimeFormatter.ISO_DATE) + ": ["+Thread.currentThread().getName()+"] size:"+cars.size());
+        List<Car> updatedCars =  cars.stream().map(c -> {
             c.setRating(rateSheet.get(String.format("%s_%s", c.getManufacturer(), c.getModel())));
             return c;
         }
         ).collect(Collectors.toList());
+        long end = System.currentTimeMillis();
+        if(!timeMap.containsKey(Thread.currentThread().getName())) {
+            timeMap.put(Thread.currentThread().getName(), end - start);
+        }
+        else {
+            timeMap.put(Thread.currentThread().getName(), timeMap.get(Thread.currentThread().getName()) + (end - start));
+        }
+        return updatedCars;
     }
 
 }

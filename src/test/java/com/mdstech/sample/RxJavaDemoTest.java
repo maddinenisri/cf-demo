@@ -4,6 +4,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
 import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertThat;
 
@@ -11,17 +14,13 @@ import static org.junit.Assert.assertThat;
 public class RxJavaDemoTest {
 
     @Test
-    public void testProcess() {
-        try {
-            Thread.sleep(50000);
-        } catch(Exception ex) {}
+    public void testProcess() throws ExecutionException, InterruptedException {
 
         RxJavaDemo rxJavaDemo = new RxJavaDemo();
-        long time = rxJavaDemo.process();
-        try {
-            Thread.sleep(50000);
-        } catch(Exception ex) {}
-        assertThat("Expected time should be less than 90s", 90000000l, greaterThan(time));
+        CompletableFuture<Long> timeCF = rxJavaDemo.process();
+
+        assertThat("Expected time should be less than 90s", 90000000l, greaterThan(timeCF.get()));
+
     }
 
 }
