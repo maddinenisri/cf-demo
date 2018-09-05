@@ -1,11 +1,15 @@
 package com.mdstech.sample;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.*;
+import io.reactivex.Observable;
+import io.reactivex.schedulers.Schedulers;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.*;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 public class RateCalculator {
@@ -67,4 +71,36 @@ public class RateCalculator {
         return updatedCars;
     }
 
+
+    public static List<Car> getRateUsingEndPoint(List<Car> cars, Map<String, Long> timeMap) {
+        long start = System.currentTimeMillis();
+        final List<Car> updatedCars = new ArrayList<>();
+        Observable<Car> carObservable = Observable.fromIterable(cars);
+        CompletableFuture<List<Car>> completableFuture = new CompletableFuture<>();
+        carObservable.buffer(500).map(carList -> {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.add("Accept", MediaType.APPLICATION_JSON_VALUE);
+            RestTemplate restTemplate = new RestTemplate();
+            HttpEntity<List<Car>> requestBody = new HttpEntity<>(carList, headers);
+            ResponseEntity<Car[]> responseEntity = restTemplate.exchange("http://localhost:8080/api/rate", HttpMethod.POST, requestBody, Car[].class);
+            return Arrays.asList(responseEntity.getBody());
+        }).subscribeOn(Schedulers.newThread()).subscribe(uCars -> {updatedCars.addAll(uCars);}, throwable -> {throw new RuntimeException(throwable);}, ()-> {completableFuture.complete(updatedCars);});
+        completableFuture.join();
+        try {
+            long end = System.currentTimeMillis();
+            if(!timeMap.containsKey(Thread.currentThread().getName())) {
+                timeMap.put(Thread.currentThread().getName(), end - start);
+            }
+            else {
+                timeMap.put(Thread.currentThread().getName(), timeMap.get(Thread.currentThread().getName()) + (end - start));
+            }
+            return completableFuture.get();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 }

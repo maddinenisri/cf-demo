@@ -4,6 +4,7 @@ import io.reactivex.BackpressureStrategy;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.schedulers.Schedulers;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+@Slf4j
 public class RxJavaDemo {
 
     public CompletableFuture<Long> process() {
@@ -26,38 +28,49 @@ public class RxJavaDemo {
         final Map<String, Long> timeMap = new ConcurrentHashMap<>();
         final int totalCount[] = new int[1];
         carFlowable.buffer(5000)
-                .parallel(8)
+                .parallel(Runtime.getRuntime().availableProcessors()-1)
                 .runOn(Schedulers.io())
-                .map(c -> RateCalculator.getRate(c, timeMap))
+                .map(c -> RateCalculator.getRateUsingEndPoint(c, timeMap))
                 .sequential()
                 .subscribeOn(Schedulers.from(executorService))
                 .observeOn(Schedulers.computation())
-                .doOnComplete(() -> {long end = System.currentTimeMillis(); System.out.println("Actual time Took " + (end - start) + "ms.");})
-                .subscribe(cars -> {
-                    totalCount[0] = totalCount[0]+cars.size();
-                    System.out.println(String.format("[%s] size: %d", Thread.currentThread().getName(), totalCount[0]));
-//                    System.out.println(timeMap);
-                },this::onError, () -> {long end = System.currentTimeMillis(); System.out.println("Actual time Took ... " + (end - start) + "ms."); completableFuture.complete((end - start));});
+                .doOnComplete(
+                        () -> {
+                            long end = System.currentTimeMillis();
+                            log.debug("Actual time Took " + (end - start) + "ms.");})
+                .subscribe(
+                    cars -> {
+                        cars.stream().filter(c -> c.getRating() == null).forEach(c -> log.info(c.toString()));
+                        totalCount[0] = totalCount[0]+cars.size();
+                        log.debug(String.format("[%s] size: %d", Thread.currentThread().getName(), totalCount[0]));
+                    },
+                    ex -> onError(ex, start),
+                    () -> {
+                        log.info(timeMap.toString());
+                        log.info("Total Count :" + totalCount[0]);
+                        long end = System.currentTimeMillis();
+                        log.info("Actual time Took ... " + (end - start) + "ms.");
+                        completableFuture.complete((end - start));
+                    });
 
         completableFuture.join();
         return completableFuture;
-
     }
 
-    private void onError(Throwable e)
+    private void onError(Throwable e, long start)
     {
-        long start = System.currentTimeMillis();
+        log.error("Got Error", e);
         done(start);
     }
 
     private void done(long start) {
         long end = System.currentTimeMillis();
-        System.out.println("Actual time Took " + (end - start) + "ms.");
+        log.error("Actual time Took with exception" + (end - start) + "ms.");
 
     }
 
     private Observable<Car> cars() {
-        return Observable.fromIterable(LongStream.range(1, 1000000).mapToObj(this::getCar).collect(Collectors.toList()));
+        return Observable.fromIterable(LongStream.range(1, 10000000).mapToObj(this::getCar).collect(Collectors.toList()));
     }
 
     private Car getCar(long index) {
@@ -77,5 +90,4 @@ public class RxJavaDemo {
     private Integer getRandomYear() {
         return new Random().nextInt(2018-1990) + 1990;
     }
-
 }
